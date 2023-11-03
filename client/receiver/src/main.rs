@@ -1,13 +1,12 @@
-use std::{
-    io::Write,
-    net::{SocketAddr, TcpStream},
-};
+use std::net::{SocketAddr, UdpSocket};
 
 const INITIAL_BUFFER: &str = "receiver";
 
 fn main() -> anyhow::Result<()> {
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
-    let mut stream = TcpStream::connect(addr)?;
-    stream.write_all(INITIAL_BUFFER.as_bytes())?;
+    let server_addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    let addr = SocketAddr::from(([127, 0, 0, 1], 0));
+
+    let socket = UdpSocket::bind(addr)?;
+    socket.send_to(INITIAL_BUFFER.as_bytes(), server_addr)?;
     Ok(())
 }

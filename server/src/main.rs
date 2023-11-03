@@ -1,7 +1,4 @@
-use std::{
-    io::Read,
-    net::{SocketAddr, TcpListener, TcpStream},
-};
+use std::net::{SocketAddr, UdpSocket};
 
 #[derive(Debug)]
 struct Room {
@@ -10,7 +7,7 @@ struct Room {
 }
 
 impl Room {
-    fn populate_with(&mut self, request: Request) {
+    fn populate(&mut self, request: Request) {
         match request {
             Request::Sender(addr) => {
                 if self.sender.is_none() {
@@ -35,30 +32,34 @@ enum Request {
     Receiver(SocketAddr),
 }
 
+impl Request {
+    fn parse(buf: &[u8], addr: SocketAddr) -> anyhow::Result<Request> {
+        let data = String::from_utf8(buf.to_vec())?;
+        if data == "sender" {
+            return Ok(Request::Sender(addr));
+        }
+        return Ok(Request::Receiver(addr));
+    }
+}
+
 fn main() -> anyhow::Result<()> {
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
-    let listener = TcpListener::bind(addr)?;
+    let socket = UdpSocket::bind(addr)?;
     let mut room = Room {
         sender: None,
         receiver: None,
     };
-    for stream in listener.incoming() {
-        let request = handle_stream(&mut stream?)?;
-        room.populate_with(request);
+
+    loop {
+        let mut buf = [0; 1024];
+        let (bytes_recv, addr) = socket.recv_from(&mut buf)?;
+        let request = Request::parse(&buf[0..bytes_recv], addr)?;
+        room.populate(request);
         if room.is_full() {
             break;
         }
     }
+
     println!("{room:?}");
     Ok(())
-}
-
-fn handle_stream(stream: &mut TcpStream) -> anyhow::Result<Request> {
-    let mut buf = String::new();
-    stream.read_to_string(&mut buf)?;
-    let addr = stream.peer_addr()?;
-    if buf == "sender" {
-        return Ok(Request::Sender(addr));
-    }
-    Ok(Request::Receiver(addr))
 }
