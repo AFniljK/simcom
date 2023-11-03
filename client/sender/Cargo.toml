@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.75"
 cpal = "0.15.2"
+dotenv = "0.15.0"
