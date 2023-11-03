@@ -2,8 +2,8 @@ use std::net::{SocketAddr, UdpSocket};
 
 use anyhow::anyhow;
 use cpal::{
-    traits::{DeviceTrait, HostTrait},
-    BufferSize, SampleRate,
+    traits::{DeviceTrait, HostTrait, StreamTrait},
+    BufferSize, Sample, SampleRate,
 };
 
 const INITIAL_BUFFER: &str = "receiver";
@@ -30,18 +30,49 @@ fn main() -> anyhow::Result<()> {
 
     let sample_rate: u32 = response.parse()?;
     let mut config = speaker.default_output_config()?.config();
+
     config.sample_rate = SampleRate(sample_rate);
     config.channels = 1;
     config.buffer_size = BufferSize::Fixed(1024);
     println!("Config: {config:?}");
     socket.send("listening".as_bytes())?;
 
-    let rb = ringbuf::HeapRb::<u8>::new(1024 * 4);
-    let (mut producer, _consumer) = rb.split();
+    let latency = ((150.0 / 1_000.0) * sample_rate as f32) as usize;
+    let rb = ringbuf::HeapRb::<u8>::new(latency * 2);
+    let (mut producer, mut consumer) = rb.split();
 
-    for _ in 0..1024 {
+    for _ in 0..latency {
         producer.push(0).unwrap();
     }
 
-    Ok(())
+    let stream = speaker.build_output_stream(
+        &config,
+        move |data: &mut [f32], _: &_| {
+            for sample in data.iter_mut() {
+                let buf = consumer.pop();
+                if buf.is_none() {
+                    println!("increase latency");
+                    *sample = 0.0;
+                } else {
+                    *sample = buf.unwrap().to_sample();
+                }
+            }
+        },
+        |err| {
+            println!("{err:?}");
+        },
+        None,
+    )?;
+    stream.play()?;
+
+    loop {
+        let mut buf = [0; 1024];
+        let bytes_read = socket.recv(&mut buf)?;
+        println!("{bytes_read:?}");
+        for sample in buf[0..bytes_read].into_iter() {
+            producer.push(*sample).unwrap_or_else(|_err| {
+                println!("latency needs increasing");
+            });
+        }
+    }
 }
