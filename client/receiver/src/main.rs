@@ -71,7 +71,6 @@ fn main() -> anyhow::Result<()> {
     loop {
         let mut buf = [0; 1024];
         let bytes_read = socket.recv(&mut buf)?;
-        println!("{bytes_read:?}");
         for sample in buf[0..bytes_read].into_iter() {
             producer.push(*sample).unwrap_or_else(|_err| {
                 println!("latency needs increasing");
