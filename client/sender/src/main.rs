@@ -8,5 +8,8 @@ fn main() -> anyhow::Result<()> {
 
     let socket = UdpSocket::bind(addr)?;
     socket.send_to(INITIAL_BUFFER.as_bytes(), server_addr)?;
+    let mut buf = [0; 1024];
+    let (bytes_read, _) = socket.recv_from(&mut buf)?;
+    println!("{:?}", String::from_utf8(buf[0..bytes_read].to_vec()));
     Ok(())
 }
