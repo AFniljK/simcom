@@ -1,31 +1,6 @@
 use std::net::{SocketAddr, UdpSocket};
 
-#[derive(Debug)]
-struct Room {
-    sender: Option<SocketAddr>,
-    receiver: Option<SocketAddr>,
-}
-
-impl Room {
-    fn populate(&mut self, request: Request) {
-        match request {
-            Request::Sender(addr) => {
-                if self.sender.is_none() {
-                    self.sender = Some(addr)
-                }
-            }
-            Request::Receiver(addr) => {
-                if self.receiver.is_none() {
-                    self.receiver = Some(addr)
-                }
-            }
-        }
-    }
-
-    fn is_full(&self) -> bool {
-        self.sender.is_some() && self.receiver.is_some()
-    }
-}
+use anyhow::{anyhow, Ok};
 
 enum Request {
     Sender(SocketAddr),
@@ -42,6 +17,36 @@ impl Request {
     }
 }
 
+#[derive(Debug)]
+struct Room {
+    sender: Option<SocketAddr>,
+    receiver: Option<SocketAddr>,
+}
+
+impl Room {
+    fn populate(&mut self, request: Request) -> anyhow::Result<()> {
+        match request {
+            Request::Sender(addr) => {
+                if self.sender.is_some() {
+                    return Err(anyhow!("sender exists"));
+                }
+                self.sender = Some(addr)
+            }
+            Request::Receiver(addr) => {
+                if self.receiver.is_some() {
+                    return Err(anyhow!("receiver exists"));
+                }
+                self.receiver = Some(addr)
+            }
+        }
+        Ok(())
+    }
+
+    fn is_full(&self) -> bool {
+        self.sender.is_some() && self.receiver.is_some()
+    }
+}
+
 fn main() -> anyhow::Result<()> {
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     let socket = UdpSocket::bind(addr)?;
@@ -54,12 +59,17 @@ fn main() -> anyhow::Result<()> {
         let mut buf = [0; 1024];
         let (bytes_recv, addr) = socket.recv_from(&mut buf)?;
         let request = Request::parse(&buf[0..bytes_recv], addr)?;
-        room.populate(request);
+        room.populate(request).unwrap_or_else(|err| {
+            socket.send_to(err.to_string().as_bytes(), addr).unwrap();
+        });
         if room.is_full() {
             break;
         }
     }
 
     println!("{room:?}");
+    socket.send_to("ready".as_bytes(), room.sender.unwrap())?;
+    socket.send_to("ready".as_bytes(), room.receiver.unwrap())?;
+
     Ok(())
 }
