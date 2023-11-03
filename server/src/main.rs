@@ -84,5 +84,12 @@ fn main() -> anyhow::Result<()> {
         return Err(anyhow!("occupied"));
     }
 
-    Ok(())
+    loop {
+        let mut buf = [0; 1024];
+        let (_, addr) = socket.recv_from(&mut buf)?;
+        if addr != room.sender.unwrap() {
+            continue;
+        }
+        socket.send_to(&buf, room.receiver.unwrap())?;
+    }
 }
