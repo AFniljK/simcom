@@ -57,8 +57,8 @@ fn main() -> anyhow::Result<()> {
 
     loop {
         let mut buf = [0; 1024];
-        let (bytes_recv, addr) = socket.recv_from(&mut buf)?;
-        let request = Request::parse(&buf[0..bytes_recv], addr)?;
+        let (bytes_read, addr) = socket.recv_from(&mut buf)?;
+        let request = Request::parse(&buf[0..bytes_read], addr)?;
         room.populate(request).unwrap_or_else(|err| {
             socket.send_to(err.to_string().as_bytes(), addr).unwrap();
         });
@@ -68,8 +68,21 @@ fn main() -> anyhow::Result<()> {
     }
 
     println!("{room:?}");
-    socket.send_to("ready".as_bytes(), room.sender.unwrap())?;
-    socket.send_to("ready".as_bytes(), room.receiver.unwrap())?;
+
+    let mut buf = [0; 1024];
+    socket.send_to("sample_rate".as_bytes(), room.sender.unwrap())?;
+    let (bytes_read, addr) = socket.recv_from(&mut buf)?;
+    if addr != room.sender.unwrap() {
+        return Err(anyhow!("occupied"));
+    }
+    let sample_rate: u32 = String::from_utf8(buf[0..bytes_read].to_vec())?.parse()?;
+    println!("sample_rate: {sample_rate:?}");
+
+    socket.send_to(sample_rate.to_string().as_bytes(), room.receiver.unwrap())?;
+    let (_, addr) = socket.recv_from(&mut [0; 1024])?;
+    if addr != room.receiver.unwrap() {
+        return Err(anyhow!("occupied"));
+    }
 
     Ok(())
 }
