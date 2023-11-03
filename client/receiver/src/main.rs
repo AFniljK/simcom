@@ -1,16 +1,19 @@
-use std::net::{SocketAddr, UdpSocket};
+use std::net::UdpSocket;
 
 use anyhow::anyhow;
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
     BufferSize, Sample, SampleRate,
 };
+use dotenv::{dotenv, var};
 
 const INITIAL_BUFFER: &str = "receiver";
 
 fn main() -> anyhow::Result<()> {
-    let server_addr = SocketAddr::from(([127, 0, 0, 1], 3000));
-    let addr = SocketAddr::from(([127, 0, 0, 1], 0));
+    dotenv().expect("404 .env not found");
+
+    let addr = var("ADDR").expect("404 ADDR not found");
+    let server_addr = var("SERVER_ADDR").expect("404 SERVER_ADDR not found");
     let host = cpal::default_host();
     let speaker = host
         .default_output_device()

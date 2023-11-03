@@ -1,6 +1,7 @@
 use std::net::{SocketAddr, UdpSocket};
 
 use anyhow::{anyhow, Ok};
+use dotenv::{dotenv, var};
 
 enum Request {
     Sender(SocketAddr),
@@ -48,7 +49,9 @@ impl Room {
 }
 
 fn main() -> anyhow::Result<()> {
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    dotenv().expect("404 .env not found");
+
+    let addr = var("ADDR").expect("404 ADDR not found");
     let socket = UdpSocket::bind(addr)?;
     let mut room = Room {
         sender: None,
