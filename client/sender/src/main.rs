@@ -2,8 +2,8 @@ use std::net::{SocketAddr, UdpSocket};
 
 use anyhow::anyhow;
 use cpal::{
-    traits::{DeviceTrait, HostTrait},
-    BufferSize,
+    traits::{DeviceTrait, HostTrait, StreamTrait},
+    BufferSize, Sample,
 };
 
 const INITIAL_BUFFER: &str = "sender";
@@ -34,5 +34,18 @@ fn main() -> anyhow::Result<()> {
     println!("Config: {config:?}");
     socket.send(config.sample_rate.0.to_string().as_bytes())?;
 
-    Ok(())
+    let stream = microphone.build_input_stream(
+        &config,
+        move |data: &[f32], _: &_| {
+            let data: Vec<u8> = data.into_iter().map(|sample| sample.to_sample()).collect();
+            socket.try_clone().unwrap().send(data.as_slice()).unwrap();
+        },
+        |err| {
+            println!("{err:?}");
+        },
+        None,
+    )?;
+    stream.play()?;
+
+    loop {}
 }
